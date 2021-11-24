@@ -6,6 +6,9 @@ const listener = new MailListener({
     fetchOnStart: true,
     imapOptions: {
         host: 'imap.gmail.com',
+        keepalive: true,
+        retryDelay: 10000,
+        maxRetry: 100,
         password: 'xxx',
         user: 'xxx',
         port: 993,
