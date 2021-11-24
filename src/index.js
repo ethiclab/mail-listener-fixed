@@ -28,7 +28,6 @@ export default class MailListener extends EventEmitter {
     constructor(options) {
         super();
         this.retry = 0;
-        this.lastUID = 0;
         this.employed = false;
         this.forceStop = false;
         this.haveNewEmails = false;
@@ -65,7 +64,6 @@ export default class MailListener extends EventEmitter {
         this.imap.on('error', this.onError.bind(this));
         this.imap.on('close', this.onClose.bind(this));
         this.imap.on('ready', this.onReady.bind(this));
-        this.lastFetch = this.options.fetchFromNow;
     }
     
     start() {
@@ -83,13 +81,9 @@ export default class MailListener extends EventEmitter {
     }
     
     search() {
-        let filter = this.options.filter.slice();
-        if (this.lastFetch === true) this.lastFetch = formatDate();
-        if (this.lastFetch === false) this.lastFetch = new Date(0);
-        if (this.options.setSince) filter.push(["SINCE", this.lastFetch]);
-        this.lastFetch = formatDate();
+        console.log('search()')
+        let filter = this.options.filter;
         this.imap.search(filter, (err, uids) => {
-            uids = uids.filter(x => x > this.lastUID);
             if (err) return this.onError(err);
             if (uids.length > 0) {
                 if (this.options.setFlags) {
@@ -117,9 +111,9 @@ export default class MailListener extends EventEmitter {
     }
     
     fetch(uid) {
+        console.log('fetch', uid)
         let locked = false;
         return new Promise((resolve, reject) => {
-            if (this.lastUID >= uid) return resolve();
             let fetch = this.imap.fetch(uid, {
                 markSeen: this.options.markSeen,
                 bodies: ''
@@ -155,7 +149,6 @@ export default class MailListener extends EventEmitter {
                         .then(mail => {
                             if (!attributes) attributes = {};
                             if (!attributes.uid) attributes.uid = uid;
-                            if (this.lastUID < uid) this.lastUID = uid;
                             this.emit('mail', mail, seg, attributes);
                             resolve();
                         })
@@ -164,6 +157,7 @@ export default class MailListener extends EventEmitter {
             });
             fetch.once('error', this.onError);
             fetch.once('end', () => {
+                console.log('end', 'locked', locked)
                 if (!locked) resolve();
             });
         });
@@ -249,7 +243,6 @@ export default class MailListener extends EventEmitter {
     onReady() {
         this.imap.openBox(this.options.mailbox, false, (err, box) => {
             if (err) return this.onError(err);
-            this.lastUID = box.uidnext - 1;
             this.emit('connected'); debug('connected');
             if (this.options.fetchOnStart) this.search();
             this.imap.on('mail', this.onMail.bind(this));
